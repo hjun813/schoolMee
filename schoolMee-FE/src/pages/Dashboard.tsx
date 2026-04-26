@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getDashboard, generateStories } from '../api/endpoints';
-import { SchoolDashboardResponse } from '../types';
+import type { SchoolDashboardResponse } from '../types';
 import { Users, BookOpen, ShoppingCart, CheckCircle, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 

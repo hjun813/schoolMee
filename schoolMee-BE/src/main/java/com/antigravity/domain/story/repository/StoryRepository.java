@@ -11,20 +11,16 @@ import java.util.Optional;
 public interface StoryRepository extends JpaRepository<Story, Long> {
 
     // 학생별 스토리 상세 (Chapter + Photo 포함) - N+1 방지
-    @Query("SELECT DISTINCT s FROM Story s " +
+    @Query("SELECT s FROM Story s " +
            "JOIN FETCH s.student st " +
            "JOIN FETCH st.school " +
-           "LEFT JOIN FETCH s.chapters c " +
-           "LEFT JOIN FETCH c.chapterPhotos cp " +
-           "LEFT JOIN FETCH cp.photo " +
            "WHERE s.student.id = :studentId")
     List<Story> findAllByStudentIdWithDetails(@Param("studentId") Long studentId);
 
     // 학교 단위 스토리 목록 (Chapter 수만 파악 - 목록 화면용)
-    @Query("SELECT DISTINCT s FROM Story s " +
+    @Query("SELECT s FROM Story s " +
            "JOIN FETCH s.student st " +
            "JOIN FETCH st.school " +
-           "LEFT JOIN FETCH s.chapters " +
            "WHERE st.school.id = :schoolId")
     List<Story> findAllBySchoolIdWithChapters(@Param("schoolId") Long schoolId);
 

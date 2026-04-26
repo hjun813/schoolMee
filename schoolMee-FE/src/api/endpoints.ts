@@ -1,5 +1,5 @@
 import { api } from './axios';
-import {
+import type {
   SchoolDashboardResponse,
   StudentListResponse,
   StoryGenerateResponse,

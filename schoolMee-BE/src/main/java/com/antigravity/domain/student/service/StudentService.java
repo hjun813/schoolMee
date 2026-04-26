@@ -36,13 +36,7 @@ public class StudentService {
                         .grade(s.getGrade())
                         .classNum(s.getClassNum())
                         .hasStory(storyRepository.existsByStudentId(s.getId()))
-                        .hasOrder(albumOrderRepository.existsByStoryId(
-                                // 스토리가 없으면 주문도 없음 → false
-                                storyRepository.findAllByStudentIdWithDetails(s.getId())
-                                        .stream().findFirst()
-                                        .map(story -> story.getId())
-                                        .orElse(-1L)
-                        ))
+                        .hasOrder(albumOrderRepository.existsByStudentId(s.getId()))
                         .build())
                 .toList();
 

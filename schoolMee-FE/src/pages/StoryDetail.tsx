@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getStudentStories, createOrder } from '../api/endpoints';
-import { StoryResponse } from '../types';
+import type { StoryResponse } from '../types';
 import { ArrowLeft, CheckCircle, Image as ImageIcon } from 'lucide-react';
 
 const StoryDetail = () => {

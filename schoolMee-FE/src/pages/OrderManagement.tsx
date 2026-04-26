@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getOrders, updateOrderStatus } from '../api/endpoints';
-import { OrderItem } from '../types';
+import type { OrderItem } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import { Package } from 'lucide-react';
 

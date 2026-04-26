@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getStudents, createOrder } from '../api/endpoints';
-import { StudentItem } from '../types';
+import type { StudentItem } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { Eye, ShoppingCart } from 'lucide-react';
 

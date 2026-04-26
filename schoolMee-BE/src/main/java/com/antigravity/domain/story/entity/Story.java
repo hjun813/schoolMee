@@ -33,6 +33,7 @@ public class Story {
     private String title;
 
     // Story -> Chapter: 양방향 관계. Chapter 생명주기는 Story에 종속.
+    @org.hibernate.annotations.BatchSize(size = 20)
     @Builder.Default
     @OneToMany(mappedBy = "story", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Chapter> chapters = new ArrayList<>();

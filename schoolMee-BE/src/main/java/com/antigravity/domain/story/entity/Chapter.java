@@ -35,6 +35,7 @@ public class Chapter {
     private Integer sequence;
 
     // Chapter -> ChapterPhoto: ChapterPhoto 생명주기는 Chapter에 종속.
+    @org.hibernate.annotations.BatchSize(size = 50)
     @Builder.Default
     @OneToMany(mappedBy = "chapter", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChapterPhoto> chapterPhotos = new ArrayList<>();

@@ -42,6 +42,7 @@ public interface AlbumOrderRepository extends JpaRepository<AlbumOrder, Long> {
     List<AlbumOrder> findAllBySchoolIdWithFullDetails(@Param("schoolId") Long schoolId);
 
     boolean existsByStoryId(Long storyId);
+    boolean existsByStudentId(Long studentId);
 
     long countByStudentSchoolIdAndStatus(Long schoolId, OrderStatus status);
 
