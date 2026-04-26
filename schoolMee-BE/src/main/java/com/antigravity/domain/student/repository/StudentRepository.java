@@ -6,12 +6,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
-    // N+1 방지: school을 fetch join으로 한 번에 로드
     @Query("SELECT s FROM Student s JOIN FETCH s.school WHERE s.school.id = :schoolId")
     List<Student> findAllBySchoolIdWithSchool(@Param("schoolId") Long schoolId);
 
-    List<Student> findAll();
+    @Query("SELECT s FROM Student s JOIN FETCH s.school WHERE s.id = :studentId")
+    Optional<Student> findByIdWithSchool(@Param("studentId") Long studentId);
+
+    long countBySchoolId(Long schoolId);
 }

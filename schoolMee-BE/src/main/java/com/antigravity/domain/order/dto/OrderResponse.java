@@ -13,6 +13,9 @@ public class OrderResponse {
     private Long orderId;
     private Long studentId;
     private String studentName;
+    private Integer grade;
+    private Integer classNum;
+    private String schoolName;
     private Long storyId;
     private String storyTitle;
     private OrderStatus status;
@@ -23,6 +26,9 @@ public class OrderResponse {
                 .orderId(order.getId())
                 .studentId(order.getStudent().getId())
                 .studentName(order.getStudent().getName())
+                .grade(order.getStudent().getGrade())
+                .classNum(order.getStudent().getClassNum())
+                .schoolName(order.getStudent().getSchool().getName())
                 .storyId(order.getStory().getId())
                 .storyTitle(order.getStory().getTitle())
                 .status(order.getStatus())

@@ -1,6 +1,7 @@
 package com.antigravity.domain.order.repository;
 
 import com.antigravity.domain.order.entity.AlbumOrder;
+import com.antigravity.domain.order.entity.OrderStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,14 +11,15 @@ import java.util.Optional;
 
 public interface AlbumOrderRepository extends JpaRepository<AlbumOrder, Long> {
 
-    // 주문 목록 조회 시 student, school, story 모두 fetch (N+1 방지)
+    // 학교 단위 주문 목록 (N+1 방지)
     @Query("SELECT o FROM AlbumOrder o " +
            "JOIN FETCH o.student st " +
            "JOIN FETCH st.school " +
-           "JOIN FETCH o.story")
-    List<AlbumOrder> findAllWithDetails();
+           "JOIN FETCH o.story " +
+           "WHERE st.school.id = :schoolId")
+    List<AlbumOrder> findAllBySchoolIdWithDetails(@Param("schoolId") Long schoolId);
 
-    // Export용 단건 조회: story의 chapters/photos 전체 포함
+    // Export용 단건 전체 구조 (chapters/photos 전체 포함)
     @Query("SELECT o FROM AlbumOrder o " +
            "JOIN FETCH o.student st " +
            "JOIN FETCH st.school " +
@@ -28,5 +30,20 @@ public interface AlbumOrderRepository extends JpaRepository<AlbumOrder, Long> {
            "WHERE o.id = :orderId")
     Optional<AlbumOrder> findByIdWithDetails(@Param("orderId") Long orderId);
 
+    // 학교 전체 Export용 (chapters/photos 포함)
+    @Query("SELECT DISTINCT o FROM AlbumOrder o " +
+           "JOIN FETCH o.student st " +
+           "JOIN FETCH st.school " +
+           "JOIN FETCH o.story s " +
+           "LEFT JOIN FETCH s.chapters c " +
+           "LEFT JOIN FETCH c.chapterPhotos cp " +
+           "LEFT JOIN FETCH cp.photo " +
+           "WHERE st.school.id = :schoolId")
+    List<AlbumOrder> findAllBySchoolIdWithFullDetails(@Param("schoolId") Long schoolId);
+
     boolean existsByStoryId(Long storyId);
+
+    long countByStudentSchoolIdAndStatus(Long schoolId, OrderStatus status);
+
+    long countByStudentSchoolId(Long schoolId);
 }
