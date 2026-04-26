@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* 
+  TailwindCSS v4.x 이상부터는 @import "tailwindcss" 로 기본 설정이 적용됩니다. 
+*/
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
