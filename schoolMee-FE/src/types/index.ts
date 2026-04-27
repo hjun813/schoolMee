@@ -78,3 +78,24 @@ export interface SchoolExportResponse {
   totalOrders: number;
   orders: any[]; // 자세한 스키마는 생략
 }
+
+export interface PhotoUploadItem {
+  photoId: number;
+  fileName: string;
+  filePath: string;
+  status: string;
+}
+
+export interface PhotoUploadResponse {
+  uploadedCount: number;
+  photos: PhotoUploadItem[];
+}
+
+export interface PhotoAnalysisResponse {
+  processedCount: number;
+}
+
+export interface PhotoMatchResponse {
+  processedPhotoCount: number;
+  matchedStudentCount: number;
+}

@@ -1,13 +1,14 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { BookOpen, Users, FolderHeart, ShoppingBag, Download } from 'lucide-react';
+import { BookOpen, Users, FolderHeart, ShoppingBag, Download, Image as ImageIcon } from 'lucide-react';
 
 const Layout = () => {
   const location = useLocation();
 
   const navItems = [
     { path: '/', label: '대시보드', icon: BookOpen },
-    { path: '/students', label: '학생 및 스토리 관리', icon: Users },
+    { path: '/photos', label: '사진 업로드 및 매칭', icon: ImageIcon },
+    { path: '/students', label: '학생 관리 및 스토리 생성', icon: Users },
     { path: '/orders', label: '주문 관리', icon: ShoppingBag },
     { path: '/export', label: '데이터 Export', icon: Download },
   ];

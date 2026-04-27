@@ -91,11 +91,11 @@ const StoryDetail = () => {
                 {chapter.photos.map((photo) => (
                   <div key={photo.photoId} className="group relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                     <img 
-                      src={photo.url} 
+                      src={`/api/v1/admin/photos/${photo.photoId}`} 
                       alt={`Photo ${photo.photoId}`} 
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
-                        // S3 더미 URL이 깨질 경우 대비
+                        // 이미지 로드 실패 시 깨진 이미지 아이콘이나 플레이스홀더를 보여줌
                         (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${photo.photoId}/400/300`;
                       }}
                     />
