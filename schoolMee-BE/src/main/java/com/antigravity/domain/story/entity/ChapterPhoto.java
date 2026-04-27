@@ -33,4 +33,9 @@ public class ChapterPhoto {
     // AI 분석 결과 - 해당 챕터에서의 이 사진의 종합 점수 (smileScore + activityScore)
     @Column(name = "total_score")
     private Integer totalScore;
+
+    public void assignChapter(Chapter chapter) {
+        this.chapter = chapter;
+        chapter.getChapterPhotos().add(this);
+    }
 }
