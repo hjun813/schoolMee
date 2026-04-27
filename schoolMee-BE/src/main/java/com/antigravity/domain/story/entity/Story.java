@@ -38,6 +38,10 @@ public class Story {
     @OneToMany(mappedBy = "story", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Chapter> chapters = new ArrayList<>();
 
+    // AI 회고 텍스트 (평균 점수 기반)
+    @Column(name = "summary", length = 500)
+    private String summary;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

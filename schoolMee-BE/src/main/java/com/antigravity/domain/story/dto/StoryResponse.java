@@ -21,6 +21,7 @@ public class StoryResponse {
     private Long studentId;
     private String studentName;
     private LocalDateTime createdAt;
+    private String summary;
     private List<ChapterDto> chapters;
 
     @Getter
@@ -64,6 +65,7 @@ public class StoryResponse {
                 .studentId(story.getStudent().getId())
                 .studentName(story.getStudent().getName())
                 .createdAt(story.getCreatedAt())
+                .summary(story.getSummary())
                 .chapters(chapterDtos)
                 .build();
     }
