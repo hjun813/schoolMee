@@ -37,30 +37,7 @@ graph LR
 
 ---
 
-## 🏗 3. Technical Architecture
-
-본 프로젝트는 고도의 유지보수성과 확장성을 위해 **Interface-driven Architecture**를 채택했습니다.
-
-```mermaid
-graph TD
-    subgraph Frontend
-        FE[React + Vite]
-    end
-    subgraph Backend
-        BE[Spring Boot]
-        AI[Mock AI Engine]
-        ST[File Storage Service]
-    end
-    FE -->|REST API| BE
-    BE -->|JPA| DB[(PostgreSQL)]
-    BE --> AI
-    BE --> ST
-    ST -->|File I/O| FS[/app/uploads]
-```
-
----
-
-## 📦 4. Image Handling & Storage
+## 📦 3. Image Handling & Storage
 
 이미지 데이터의 보안 및 효율적인 서빙을 위해 아래와 같은 구조를 사용합니다.
 
@@ -70,7 +47,7 @@ graph TD
 
 ---
 
-## 🧪 5. Verification Test Scenarios (검증 절차)
+## 🧪 4. Verification Test Scenarios (검증 절차)
 
 1.  **Onboarding**: `Quick Start` 버튼 클릭으로 테스트 환경 즉시 구축
 2.  **FaceKey 생성**: 학생 상세 페이지에서 증명사진 기반 고유 식별키 생성 확인
@@ -80,7 +57,7 @@ graph TD
 
 ---
 
-## ⚠️ 6. Known Limitations (학술적 고찰)
+## ⚠️ 5. Known Limitations (학술적 고찰)
 
 실제 서비스 런칭 시 개선이 필요한 알려진 한계점입니다.
 
@@ -90,7 +67,7 @@ graph TD
 
 ---
 
-## 💡 7. Engineering Rationale
+## 💡 6. Engineering Rationale
 
 - **N:M Mapping**: 한 사진에 여러 학생, 한 학생이 여러 사진에 등장하는 관계를 `PhotoStudent` 연결 엔티티로 최적화
 - **Separation of Concerns**: UI, API, Business Logic, Data Access, Infrastructure를 철저히 분리
@@ -98,7 +75,7 @@ graph TD
 
 ---
 
-## 🛠 8. Requirements & Setup
+## 🛠 7. Requirements & Setup
 
 - **Requirements**: Docker Engine 20.10+, Docker Compose V2+
 - **Setup**:
