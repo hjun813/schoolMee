@@ -1,0 +1,9 @@
+.git
+.gitignore
+build
+dist
+uploads
+node_modules
+*.log
+*.zip
+*.tar

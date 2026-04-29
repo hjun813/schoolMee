@@ -1,15 +1,15 @@
-# Build stage
+# build stage
 FROM gradle:7.6-jdk17 AS build
-WORKDIR /home/gradle/src
-COPY --chown=gradle:gradle . .
-RUN gradle build --no-daemon -x test
-
-# Run stage
-FROM openjdk:17-slim
 WORKDIR /app
-COPY --from=build /home/gradle/src/build/libs/*.jar app.jar
+COPY . .
+RUN gradle build -x test --no-daemon
 
-# Create uploads directory
+# run stage
+FROM eclipse-temurin:17-jdk-jammy
+WORKDIR /app
+COPY --from=build /app/build/libs/*.jar app.jar
+
+# Ensure uploads directory exists
 RUN mkdir -p uploads/photos
 
 EXPOSE 8080
