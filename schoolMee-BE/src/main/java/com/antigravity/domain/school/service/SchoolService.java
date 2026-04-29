@@ -4,8 +4,12 @@ import com.antigravity.domain.order.entity.OrderStatus;
 import com.antigravity.domain.order.repository.AlbumOrderRepository;
 import com.antigravity.domain.photo.dto.PhotoPoolResponse;
 import com.antigravity.domain.photo.repository.PhotoRepository;
+import com.antigravity.domain.school.dto.ClassRoomRequest;
 import com.antigravity.domain.school.dto.SchoolDashboardResponse;
+import com.antigravity.domain.school.entity.ClassRoom;
+import com.antigravity.domain.school.entity.OnboardingStep;
 import com.antigravity.domain.school.entity.School;
+import com.antigravity.domain.school.repository.ClassRoomRepository;
 import com.antigravity.domain.school.repository.SchoolRepository;
 import com.antigravity.domain.story.repository.StoryRepository;
 import com.antigravity.domain.student.repository.StudentRepository;
@@ -13,16 +17,40 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SchoolService {
 
     private final SchoolRepository schoolRepository;
+    private final ClassRoomRepository classRoomRepository;
     private final StudentRepository studentRepository;
     private final StoryRepository storyRepository;
     private final AlbumOrderRepository albumOrderRepository;
     private final PhotoRepository photoRepository;
+
+    public List<SchoolDashboardResponse> getAllSchools() {
+        return schoolRepository.findAll().stream()
+                .map(s -> SchoolDashboardResponse.builder()
+                        .schoolId(s.getId())
+                        .name(s.getName())
+                        .onboardingStatus(s.getOnboardingStep())
+                        .createdAt(s.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public Long createSchool(String name) {
+        School school = School.builder()
+                .name(name)
+                .onboardingStep(OnboardingStep.SCHOOL_CREATED)
+                .build();
+        return schoolRepository.save(school).getId();
+    }
 
     /**
      * 관리자 대시보드 진입 시 호출.
@@ -32,14 +60,15 @@ public class SchoolService {
         final School school = schoolRepository.findById(schoolId)
                 .orElseThrow(() -> new IllegalArgumentException("학교를 찾을 수 없습니다. schoolId=" + schoolId));
 
-        final long totalStudents = studentRepository.countBySchoolId(schoolId);
-        final long storiesGenerated = storyRepository.countByStudentSchoolId(schoolId);
-        final long ordersCreated = albumOrderRepository.countByStudentSchoolId(schoolId);
-        final long ordersCompleted = albumOrderRepository.countByStudentSchoolIdAndStatus(schoolId, OrderStatus.COMPLETED);
+        final long totalStudents = studentRepository.countByClassRoomSchoolId(schoolId);
+        final long storiesGenerated = storyRepository.countByStudentClassRoomSchoolId(schoolId);
+        final long ordersCreated = albumOrderRepository.countByStudentClassRoomSchoolId(schoolId);
+        final long ordersCompleted = albumOrderRepository.countByStudentClassRoomSchoolIdAndStatus(schoolId, OrderStatus.COMPLETED);
 
         return SchoolDashboardResponse.builder()
                 .schoolId(school.getId())
                 .name(school.getName())
+                .onboardingStatus(school.getOnboardingStep())
                 .totalStudents(totalStudents)
                 .storiesGenerated(storiesGenerated)
                 .ordersCreated(ordersCreated)
@@ -54,5 +83,37 @@ public class SchoolService {
      */
     public PhotoPoolResponse getPhotoPool(final Long schoolId) {
         return PhotoPoolResponse.of(schoolId, photoRepository.findBySchoolId(schoolId));
+    }
+
+    /**
+     * 반 생성. 온보딩 2단계.
+     */
+    @Transactional
+    public Long createClassRoom(final Long schoolId, final ClassRoomRequest request) {
+        final School school = schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new IllegalArgumentException("학교를 찾을 수 없습니다. schoolId=" + schoolId));
+
+        final ClassRoom classRoom = ClassRoom.builder()
+                .school(school)
+                .grade(request.getGrade())
+                .classNum(request.getClassNum())
+                .build();
+        
+        final ClassRoom saved = classRoomRepository.save(classRoom);
+
+        // 온보딩 단계 업데이트
+        if (school.getOnboardingStep() == OnboardingStep.SCHOOL_CREATED) {
+            school.updateOnboardingStep(OnboardingStep.CLASS_CREATED);
+        }
+
+        return saved.getId();
+    }
+
+    /**
+     * 학교 정보 및 현재 온보딩 위치 조회용.
+     */
+    public School getSchool(final Long schoolId) {
+        return schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new IllegalArgumentException("학교를 찾을 수 없습니다. schoolId=" + schoolId));
     }
 }

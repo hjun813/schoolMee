@@ -1,18 +1,17 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { uploadPhotos, analyzePhotos, matchStudents } from '../api/endpoints';
-import { UploadCloud, Image as ImageIcon, Sparkles, Users, CheckCircle, ArrowRight, X } from 'lucide-react';
+import { uploadPhotos, runPipeline } from '../api/endpoints';
+import { useSchool } from '../context/SchoolContext';
+import { UploadCloud, Sparkles, CheckCircle, ArrowRight, X } from 'lucide-react';
 
 const PhotoUpload = () => {
   const [files, setFiles] = useState<File[]>([]);
-  const [uploadedPhotoIds, setUploadedPhotoIds] = useState<number[]>([]);
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1); // 1: Upload, 2: Analyze, 3: Match, 4: Done
+  const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Upload, 2: Process, 3: Done
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
+  const { currentSchoolId: schoolId } = useSchool();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-
-  const SCHOOL_ID = 1; // MVP
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -28,55 +27,31 @@ const PhotoUpload = () => {
     setMessages(prev => [...prev, msg]);
   };
 
-  const handleUpload = async () => {
+  const handleUploadAndProcess = async () => {
+    if (!schoolId) return alert('학교 정보를 찾을 수 없습니다.');
     if (files.length === 0) {
       alert('업로드할 사진을 선택해주세요.');
       return;
     }
     setLoading(true);
     try {
-      addMessage(`사진 ${files.length}장 업로드 시작...`);
-      const res = await uploadPhotos(SCHOOL_ID, files);
-      const ids = res.data.photos.map(p => p.photoId);
-      setUploadedPhotoIds(ids);
-      addMessage(`✅ 업로드 완료: ${res.data.uploadedCount}장`);
-      setStep(2);
-    } catch (error: any) {
-      console.error(error);
-      addMessage(`❌ 업로드 실패: ${error.response?.data?.message || error.message}`);
-      alert('사진 업로드 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      addMessage(`[1단계] 사진 ${files.length}장 업로드 시작...`);
+      const uploadRes = await uploadPhotos(schoolId, 'GROUP', files);
+      const photoIds = uploadRes.data.photos.map(p => p.photoId);
+      addMessage(`✅ 사진 보관소 업로드 완전 성공: ${uploadRes.data.uploadedCount}장`);
 
-  const handleAnalyze = async () => {
-    setLoading(true);
-    try {
-      addMessage('AI 분석(시뮬레이션) 시작...');
-      const res = await analyzePhotos(uploadedPhotoIds);
-      addMessage(`✅ 분석 완료: ${res.data.processedCount}장`);
+      setStep(2);
+      addMessage(`[2단계] 자동화 파이프라인(분석+매칭+스토리발행) 엔진을 가동합니다...`);
+      const pipelineRes = await runPipeline(photoIds, schoolId);
+      
+      addMessage(`✅ 매칭된 사진 수: ${pipelineRes.data.processedPhotos}장`);
+      addMessage(`🎉 신규 스토리 앨범 발행 수: ${pipelineRes.data.storiesGenerated}건`);
+
       setStep(3);
     } catch (error: any) {
       console.error(error);
-      addMessage(`❌ 분석 실패: ${error.response?.data?.message || error.message}`);
-      alert('AI 분석 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMatch = async () => {
-    setLoading(true);
-    try {
-      addMessage('학생 매칭 시작...');
-      const res = await matchStudents(uploadedPhotoIds);
-      addMessage(`✅ 매칭 완료: 대상 사진 ${res.data.processedPhotoCount}장, 매칭 학생 ${res.data.matchedStudentCount}명`);
-      setStep(4);
-    } catch (error: any) {
-      console.error(error);
-      addMessage(`❌ 매칭 실패: ${error.response?.data?.message || error.message}`);
-      alert('학생 매칭 중 오류가 발생했습니다.');
+      addMessage(`❌ 파이프라인 처리 실패: ${error.response?.data?.message || error.message}`);
+      alert('서버 처리 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -85,23 +60,21 @@ const PhotoUpload = () => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-        <h2 className="text-2xl font-bold text-gray-900">사진 업로드 및 매칭 파이프라인</h2>
+        <h2 className="text-2xl font-bold text-gray-900">원클릭 스토리북 발행 엔진</h2>
         <p className="text-gray-500 mt-1">
-          행사 사진을 업로드하고, AI로 점수를 분석하여 학생들과 매칭합니다.
+          행사 사진을 밀어넣기만 하세요! AI 분석, 학생 매칭, 맞춤형 앨범 생성까지 한 번에 완료됩니다.
         </p>
       </div>
 
       {/* Progress Steps */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between px-10 relative">
-        <div className="absolute inset-x-10 top-1/2 -z-10 h-0.5 bg-gray-100 flex -translate-y-1/2">
-          {/* Progress bar line */}
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between px-16 relative">
+        <div className="absolute inset-x-16 top-1/2 -z-10 h-0.5 bg-gray-100 flex -translate-y-1/2">
         </div>
         
         {[
-          { num: 1, label: '사진 업로드', icon: UploadCloud },
-          { num: 2, label: 'AI 분석', icon: Sparkles },
-          { num: 3, label: '학생 매칭', icon: Users },
-          { num: 4, label: '완료', icon: CheckCircle }
+          { num: 1, label: '사진 선택', icon: UploadCloud },
+          { num: 2, label: '자동화 파이프라인', icon: Sparkles },
+          { num: 3, label: '앨범 발행 완료', icon: CheckCircle }
         ].map((s) => {
           const Icon = s.icon;
           const isActive = step >= s.num;
@@ -127,176 +100,135 @@ const PhotoUpload = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Action Area */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Step 1: Upload */}
-          <div className={`bg-white p-6 rounded-xl border transition-all ${step === 1 ? 'border-indigo-300 ring-1 ring-indigo-300 shadow-md' : 'border-gray-200 shadow-sm opacity-60'}`}>
-            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-              <span className="flex justify-center items-center w-6 h-6 rounded bg-indigo-100 text-indigo-700 text-sm">1</span>
-              사진 업로드
-            </h3>
-            
-            <div className="space-y-4">
-              <div 
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
-                  step === 1 ? 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50' : 'border-gray-200 pointer-events-none'
-                }`}
-                onClick={() => step === 1 && fileInputRef.current?.click()}
-              >
-                <input 
-                  type="file" 
-                  multiple 
-                  accept="image/*" 
-                  className="hidden" 
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  disabled={step !== 1 || loading}
-                />
-                <UploadCloud size={40} className={`mx-auto mb-3 ${step === 1 ? 'text-indigo-500' : 'text-gray-400'}`} />
-                <p className="font-medium text-gray-700">클릭하여 사진을 선택하세요</p>
-                <p className="text-sm text-gray-400 mt-1">PNG, JPG, WEBP (여러 장 선택 가능)</p>
-              </div>
-
-              {files.length > 0 && (
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
-                  <div className="flex justify-between items-center text-sm font-medium text-gray-700">
-                    <span>선택된 파일 ({files.length}장)</span>
-                    {step === 1 && (
-                      <button onClick={() => setFiles([])} className="text-red-500 hover:underline">전체 삭제</button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-40 overflow-y-auto pr-2">
-                    {files.map((f, idx) => (
-                      <div key={idx} className="relative group aspect-square bg-gray-200 rounded-md overflow-hidden border border-gray-300">
-                        <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
-                        {step === 1 && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
-                            className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+          {step <= 2 && (
+            <div className={`bg-white p-6 rounded-xl border transition-all ${step === 1 ? 'border-indigo-300 ring-1 ring-indigo-300 shadow-md' : 'border-gray-200 shadow-sm opacity-60'}`}>
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                <span className="flex justify-center items-center w-6 h-6 rounded bg-indigo-100 text-indigo-700 text-sm">{step}</span>
+                {step === 1 ? '전체 학교 행사 사진 선택' : '자동 파이프라인 가동 중...'}
+              </h3>
+              
+              <div className="space-y-4">
+                <div 
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                    step === 1 ? 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50' : 'border-gray-200 pointer-events-none'
+                  }`}
+                  onClick={() => step === 1 && fileInputRef.current?.click()}
+                >
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept="image/*" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    disabled={step !== 1 || loading}
+                  />
+                  <UploadCloud size={40} className={`mx-auto mb-3 ${step === 1 ? 'text-indigo-500' : 'text-gray-400'}`} />
+                  <p className="font-medium text-gray-700">클릭하여 단체 행사 사진들을 고르세요</p>
+                  <p className="text-sm text-gray-400 mt-1">이 사진들은 학생별로 쪼개져 앨범에 자동으로 들어갑니다.</p>
                 </div>
-              )}
 
-              <button
-                onClick={handleUpload}
-                disabled={step !== 1 || files.length === 0 || loading}
-                className="w-full flex justify-center items-center gap-2 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-              >
-                {loading && step === 1 ? '업로드 중...' : '서버로 업로드 (PENDING)'} <ArrowRight size={18} />
-              </button>
+                {files.length > 0 && (
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
+                    <div className="flex justify-between items-center text-sm font-medium text-gray-700">
+                      <span>선택된 파일 ({files.length}장)</span>
+                      {step === 1 && (
+                        <button onClick={() => setFiles([])} className="text-red-500 hover:underline">전체 삭제</button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-40 overflow-y-auto pr-2">
+                      {files.map((f, idx) => (
+                        <div key={idx} className="relative group aspect-square bg-gray-200 rounded-md overflow-hidden border border-gray-300">
+                          <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                          {step === 1 && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
+                              className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {step === 1 && (
+                  <button
+                    onClick={handleUploadAndProcess}
+                    disabled={files.length === 0 || loading}
+                    className="w-full flex justify-center items-center gap-2 py-4 bg-indigo-600 text-white rounded-xl font-bold text-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-lg shadow-indigo-200"
+                  >
+                    🚀 원클릭 파이프라인 가동! <ArrowRight size={20} />
+                  </button>
+                )}
+                {step === 2 && (
+                  <div className="w-full py-4 text-center text-indigo-700 font-bold bg-indigo-50 rounded-xl animate-pulse">
+                    AI 분석 및 앨범을 발행하고 있습니다... 잠시만 기다려주세요!
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Step 2: Analyze */}
-          <div className={`bg-white p-6 rounded-xl border transition-all ${step === 2 ? 'border-indigo-300 ring-1 ring-indigo-300 shadow-md' : 'border-gray-200 shadow-sm opacity-60'}`}>
-            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-              <span className="flex justify-center items-center w-6 h-6 rounded bg-indigo-100 text-indigo-700 text-sm">2</span>
-              AI 점수 분석 (시뮬레이션)
-            </h3>
-            <p className="text-gray-600 text-sm mb-4">
-              업로드된 PENDING 상태의 사진들을 분석하여 미소 점수(smileScore), 활동 점수(activityScore)를 랜덤(시뮬레이션)으로 부여하고 ANALYZED 상태로 변경합니다.
-            </p>
-            <button
-              onClick={handleAnalyze}
-              disabled={step !== 2 || loading}
-              className="w-full flex justify-center items-center gap-2 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-            >
-              <Sparkles size={18} />
-              {loading && step === 2 ? '분석 중...' : 'AI 분석 실행'} <ArrowRight size={18} />
-            </button>
-          </div>
-
-          {/* Step 3: Match */}
-          <div className={`bg-white p-6 rounded-xl border transition-all ${step === 3 ? 'border-indigo-300 ring-1 ring-indigo-300 shadow-md' : 'border-gray-200 shadow-sm opacity-60'}`}>
-            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-              <span className="flex justify-center items-center w-6 h-6 rounded bg-indigo-100 text-indigo-700 text-sm">3</span>
-              학생 자동 매칭
-            </h3>
-            <p className="text-gray-600 text-sm mb-4">
-              분석이 완료된 ANALYZED 사진에서 감지된 얼굴 수만큼 학생들을 매칭하고, 최종적으로 MATCHED 상태로 변경합니다. 이 단계가 끝나면 스토리 생성이 가능해집니다.
-            </p>
-            <button
-              onClick={handleMatch}
-              disabled={step !== 3 || loading}
-              className="w-full flex justify-center items-center gap-2 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-            >
-              <Users size={18} />
-              {loading && step === 3 ? '매칭 중...' : '학생 매칭 실행'} <ArrowRight size={18} />
-            </button>
-          </div>
-          
-          {/* Step 4: Done */}
-          {step === 4 && (
+          {step === 3 && (
              <div className="bg-green-50 p-6 rounded-xl border border-green-200 shadow-sm text-center">
-               <CheckCircle size={40} className="mx-auto text-green-500 mb-3" />
-               <h3 className="text-xl font-bold text-green-800 mb-2">모든 준비가 완료되었습니다!</h3>
-               <p className="text-green-700 mb-6">이제 대시보드나 학생 목록에서 스토리를 생성할 수 있습니다.</p>
+               <CheckCircle size={48} className="mx-auto text-green-500 mb-4" />
+               <h3 className="text-2xl font-bold text-green-800 mb-2">학생별 맞춤형 앨범 발행이 완료되었습니다!</h3>
+               <p className="text-green-700 mb-8">AI가 얼굴을 식별하여 각 학생들의 고유한 스토리북을 엮어주었습니다.</p>
                <div className="flex gap-4 justify-center">
                  <button 
                   onClick={() => {
                     setStep(1);
                     setFiles([]);
-                    setUploadedPhotoIds([]);
                     setMessages([]);
                   }}
-                  className="px-5 py-2 bg-white text-green-700 font-medium rounded-lg border border-green-300 hover:bg-green-50 transition-colors"
+                  className="px-6 py-3 bg-white text-green-700 font-bold rounded-xl border border-green-300 hover:bg-green-50 transition-colors shadow-sm"
                 >
-                  새로운 사진 추가
+                  다른 행사 사진 추가하기
                 </button>
                 <button 
                   onClick={() => navigate('/')}
-                  className="px-5 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+                  className="px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
                 >
-                  대시보드로 이동
+                  대시보드에서 앨범 확인하기
                 </button>
                </div>
              </div>
           )}
         </div>
 
-        {/* Logs Console */}
-        <div className="lg:col-span-1 bg-gray-900 rounded-xl overflow-hidden flex flex-col h-[500px] lg:h-auto border border-gray-800 shadow-lg">
+        <div className="lg:col-span-1 bg-gray-900 rounded-xl overflow-hidden flex flex-col h-[550px] lg:h-auto border border-gray-800 shadow-xl">
           <div className="bg-gray-800 px-4 py-3 flex items-center justify-between border-b border-gray-700">
             <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-              파이프라인 로그
+              <span className={`w-2 h-2 rounded-full ${loading ? 'bg-indigo-400 animate-pulse' : step === 3 ? 'bg-green-400' : 'bg-gray-500'}`}></span>
+              엔진 처리 로그
             </h3>
-            {messages.length > 0 && (
-              <button 
-                onClick={() => setMessages([])}
-                className="text-gray-400 hover:text-white text-xs"
-              >
-                Clear
-              </button>
-            )}
           </div>
-          <div className="flex-1 p-4 overflow-y-auto font-mono text-xs sm:text-sm space-y-2">
+          <div className="flex-1 p-4 overflow-y-auto font-mono text-xs sm:text-sm space-y-2 relative">
             {messages.length === 0 ? (
-              <div className="text-gray-500 italic h-full flex items-center justify-center">
-                수행 결과가 여기에 표시됩니다.
+              <div className="text-gray-500 italic h-full flex flex-col items-center justify-center opacity-70">
+                <Sparkles size={32} className="mb-2" />
+                <span>버튼을 누르면 엔진이 가동됩니다.</span>
               </div>
             ) : (
               messages.map((m, i) => (
                 <div key={i} className={`pb-1 border-b border-gray-800/50 ${
-                  m.includes('❌') ? 'text-red-400' :
-                  m.includes('✅') ? 'text-green-400' :
+                  m.includes('❌') ? 'text-red-400 font-bold' :
+                  m.includes('✅') || m.includes('🎉') ? 'text-green-400 font-bold' :
                   'text-gray-300'
                 }`}>
-                  <span className="text-gray-600 mr-2">[{new Date().toLocaleTimeString()}]</span>
+                  <span className="text-gray-600 mr-2">[{new Date().toLocaleTimeString('en-US', {hour12: false})}]</span>
                   {m}
                 </div>
               ))
             )}
             {loading && (
-              <div className="text-yellow-400 flex items-center gap-2">
-                <div className="w-3 h-3 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
-                처리 중...
+              <div className="text-indigo-400 flex items-center gap-2 pt-2">
+                <div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                파이프라인 통신 중...
               </div>
             )}
           </div>

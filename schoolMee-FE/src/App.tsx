@@ -1,7 +1,9 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { SchoolProvider } from './context/SchoolContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import SchoolSelection from './pages/SchoolSelection';
+import Onboarding from './pages/Onboarding';
 import PhotoUpload from './pages/PhotoUpload';
 import StudentList from './pages/StudentList';
 import StoryDetail from './pages/StoryDetail';
@@ -10,18 +12,22 @@ import ExportPage from './pages/ExportPage';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="photos" element={<PhotoUpload />} />
-          <Route path="students" element={<StudentList />} />
-          <Route path="students/:studentId/stories" element={<StoryDetail />} />
-          <Route path="orders" element={<OrderManagement />} />
-          <Route path="export" element={<ExportPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <SchoolProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/schools" element={<SchoolSelection />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="photos" element={<PhotoUpload />} />
+            <Route path="students" element={<StudentList />} />
+            <Route path="students/:studentId/stories" element={<StoryDetail />} />
+            <Route path="orders" element={<OrderManagement />} />
+            <Route path="export" element={<ExportPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </SchoolProvider>
   );
 }
 

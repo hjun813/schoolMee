@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getOrders, updateOrderStatus } from '../api/endpoints';
+import { useSchool } from '../context/SchoolContext';
 import type { OrderItem } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import { Package } from 'lucide-react';
@@ -8,11 +9,11 @@ const OrderManagement = () => {
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [summary, setSummary] = useState({ PENDING: 0, PROCESSING: 0, COMPLETED: 0 });
   const [loading, setLoading] = useState(true);
-  const SCHOOL_ID = 1;
+  const { currentSchoolId: schoolId } = useSchool();
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (id: number) => {
     try {
-      const res = await getOrders(SCHOOL_ID);
+      const res = await getOrders(id);
       setOrders(res.data.orders);
       setSummary(res.data.summary);
     } catch (error) {
@@ -23,13 +24,15 @@ const OrderManagement = () => {
   };
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    if (schoolId) {
+      fetchOrders(schoolId);
+    }
+  }, [schoolId]);
 
   const handleStatusChange = async (orderId: number, newStatus: 'PENDING' | 'PROCESSING' | 'COMPLETED') => {
     try {
       await updateOrderStatus(orderId, newStatus);
-      fetchOrders(); // 갱신
+      if (schoolId) fetchOrders(schoolId); // 갱신
     } catch (error) {
       console.error(error);
       alert('상태 업데이트에 실패했습니다.');

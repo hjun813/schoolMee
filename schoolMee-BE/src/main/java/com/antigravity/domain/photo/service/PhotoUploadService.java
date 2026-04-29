@@ -3,7 +3,9 @@ package com.antigravity.domain.photo.service;
 import com.antigravity.domain.photo.dto.PhotoUploadResponse;
 import com.antigravity.domain.photo.entity.AnalysisStatus;
 import com.antigravity.domain.photo.entity.Photo;
+import com.antigravity.domain.photo.entity.PhotoType;
 import com.antigravity.domain.photo.repository.PhotoRepository;
+import com.antigravity.domain.school.entity.OnboardingStep;
 import com.antigravity.domain.school.entity.School;
 import com.antigravity.domain.school.repository.SchoolRepository;
 import com.antigravity.global.storage.FileStorageService;
@@ -34,7 +36,7 @@ public class PhotoUploadService {
     private final FileStorageService fileStorageService;
 
     @Transactional
-    public PhotoUploadResponse uploadPhotos(Long schoolId, MultipartFile[] files) {
+    public PhotoUploadResponse uploadPhotos(Long schoolId, PhotoType type, MultipartFile[] files) {
         final School school = schoolRepository.findById(schoolId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "학교를 찾을 수 없습니다. schoolId=" + schoolId));
@@ -48,6 +50,7 @@ public class PhotoUploadService {
             final Photo photo = Photo.builder()
                     .school(school)
                     .url(filePath)
+                    .type(type)
                     .analysisStatus(AnalysisStatus.PENDING)
                     .build();
 
@@ -63,7 +66,13 @@ public class PhotoUploadService {
             log.info("사진 업로드 완료: photoId={}, fileName={}", saved.getId(), file.getOriginalFilename());
         }
 
-        log.info("총 {}장 업로드 완료 (schoolId={})", items.size(), schoolId);
+        log.info("총 {}장 업로드 완료 (schoolId={}, type={})", items.size(), schoolId, type);
+
+        // 온보딩 단계 업데이트 (단체 사진 업로드 시)
+        if (type == PhotoType.GROUP && school.getOnboardingStep() == OnboardingStep.STUDENT_UPLOADED) {
+            school.updateOnboardingStep(OnboardingStep.PHOTO_UPLOADED);
+            log.info("학교 온보딩 단계 업데이트: {} -> {}", OnboardingStep.STUDENT_UPLOADED, OnboardingStep.PHOTO_UPLOADED);
+        }
 
         return PhotoUploadResponse.builder()
                 .uploadedCount(items.size())

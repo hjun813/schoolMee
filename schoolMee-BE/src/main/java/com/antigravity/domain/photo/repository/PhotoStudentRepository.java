@@ -15,4 +15,6 @@ public interface PhotoStudentRepository extends JpaRepository<PhotoStudent, Long
 
     // 특정 학생의 매칭 사진 목록 (점수 높은 순)
     List<PhotoStudent> findByStudentIdOrderByMatchScoreDesc(Long studentId);
+
+    int countByStudentId(Long studentId);
 }

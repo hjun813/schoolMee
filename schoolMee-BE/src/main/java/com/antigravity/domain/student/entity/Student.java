@@ -1,5 +1,6 @@
 package com.antigravity.domain.student.entity;
 
+import com.antigravity.domain.school.entity.ClassRoom;
 import com.antigravity.domain.school.entity.School;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,17 +22,25 @@ public class Student {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // N:1 관계 - 여러 학생이 하나의 학교에 속함
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "school_id", nullable = false)
-    private School school;
+    @JoinColumn(name = "class_room_id", nullable = false)
+    private ClassRoom classRoom;
 
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private Integer grade;
+    @Column(name = "profile_image_path")
+    private String profileImagePath;
 
-    @Column(name = "class_num", nullable = false)
-    private Integer classNum;
+    @Column(name = "face_key", unique = true)
+    private String faceKey;
+
+    public void updateProfile(String profileImagePath, String faceKey) {
+        this.profileImagePath = profileImagePath;
+        this.faceKey = faceKey;
+    }
+
+    public School getSchool() {
+        return classRoom != null ? classRoom.getSchool() : null;
+    }
 }

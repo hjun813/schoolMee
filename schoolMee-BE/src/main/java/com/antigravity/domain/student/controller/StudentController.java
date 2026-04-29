@@ -32,4 +32,22 @@ public class StudentController {
             @Parameter(description = "학생 ID") @PathVariable(name = "studentId") Long studentId) {
         return ResponseEntity.ok(studentService.getStudentDetail(studentId));
     }
+
+    @Operation(summary = "학생 증명사진 업로드",
+               description = "학생의 증명사진을 업로드하고 faceKey(얼굴 특징 키)를 생성합니다.")
+    @PostMapping(value = "/api/v1/admin/students/{studentId}/profile-photo", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<com.antigravity.domain.student.dto.StudentProfileResponse> uploadProfilePhoto(
+            @Parameter(description = "학생 ID") @PathVariable(name = "studentId") Long studentId,
+            @Parameter(description = "증명사진 파일") @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+        return ResponseEntity.ok(studentService.uploadProfilePhoto(studentId, file));
+    }
+
+    @Operation(summary = "학생 증명사진 대량 업로드 및 시스템 일괄 자동 등록",
+               description = "여러 장의 파일명(이름) 기반 증명사진을 업로드하여 학생 엔티티와 안면 앵커(faceKey)를 한 번에 생성합니다.")
+    @PostMapping(value = "/api/v1/admin/students/profile-bulk-upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<com.antigravity.domain.student.dto.StudentBulkUploadResponse> bulkUploadProfilesAndCreateStudents(
+            @Parameter(description = "해당 사진들을 등록할 목표 학교 ID") @RequestParam(name = "schoolId") Long schoolId,
+            @Parameter(description = "이미지 리스트 (honggildong.jpg ...)") @RequestPart("files") java.util.List<org.springframework.web.multipart.MultipartFile> files) {
+        return ResponseEntity.ok(studentService.bulkUploadProfilesAndCreateStudents(schoolId, files));
+    }
 }

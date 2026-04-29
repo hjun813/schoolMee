@@ -9,11 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * 사진 AI 분석 서비스 (시뮬레이션).
@@ -33,59 +31,37 @@ import java.util.stream.IntStream;
 public class PhotoAnalysisService {
 
     private final PhotoRepository photoRepository;
-
     private static final Random RANDOM = new Random();
 
-    /**
-     * 학교 내 PENDING 상태 사진 전체를 분석한다.
-     * 이미 ANALYZED인 사진은 건너뜀.
-     */
     @Transactional
-    public PhotoAnalysisResponse analyzeAllPending(Long schoolId) {
-        final List<Photo> pendingPhotos =
-                photoRepository.findBySchoolIdAndAnalysisStatus(schoolId, AnalysisStatus.PENDING);
+    public PhotoAnalysisResponse analyzePhotos(List<Long> photoIds) {
+        final List<Photo> pendingPhotos = photoRepository.findAllById(photoIds)
+                .stream()
+                .filter(p -> p.getAnalysisStatus() == AnalysisStatus.PENDING)
+                .collect(Collectors.toList());
 
         if (pendingPhotos.isEmpty()) {
-            log.info("PENDING 상태 사진 없음. schoolId={}", schoolId);
-            return PhotoAnalysisResponse.builder()
-                    .analyzedCount(0)
-                    .results(List.of())
-                    .build();
+            return PhotoAnalysisResponse.builder().processedCount(0).build();
         }
 
-        final List<PhotoAnalysisResponse.PhotoAnalysisItem> results = new ArrayList<>();
-
+        int processedCount = 0;
         for (Photo photo : pendingPhotos) {
-            // AI 시뮬레이션: 랜덤 분석 결과 생성
-            final int smileScore    = 40 + RANDOM.nextInt(61);  // 40~100
-            final int activityScore = 30 + RANDOM.nextInt(71);  // 30~100
-            final int faceCount     = 1  + RANDOM.nextInt(5);   // 1~5
+            final int smileScore = 40 + RANDOM.nextInt(61);
+            final int activityScore = 30 + RANDOM.nextInt(71);
+            final int faceCount = 2 + RANDOM.nextInt(4); // 2~5명
 
-            final String faceIds = IntStream.rangeClosed(1, faceCount)
-                    .mapToObj(i -> "face_" + i)
-                    .collect(Collectors.joining(","));
+            List<String> faces = new java.util.ArrayList<>();
+            for (int i = 1; i <= faceCount; i++) {
+                faces.add("\"detected_face_" + i + "\"");
+            }
+            final String faceIds = "[" + String.join(",", faces) + "]";
 
-            // dirty checking으로 자동 persist (@Transactional 범위 내)
             photo.applyAnalysisResult(smileScore, activityScore, faceCount, faceIds);
-
-            results.add(PhotoAnalysisResponse.PhotoAnalysisItem.builder()
-                    .photoId(photo.getId())
-                    .smileScore(smileScore)
-                    .activityScore(activityScore)
-                    .detectedFacesCount(faceCount)
-                    .faceIds(faceIds)
-                    .status(AnalysisStatus.ANALYZED.name())
-                    .build());
-
-            log.info("사진 분석 완료: photoId={}, smile={}, activity={}, faces={}",
-                    photo.getId(), smileScore, activityScore, faceCount);
+            processedCount++;
         }
-
-        log.info("총 {}장 분석 완료 (schoolId={})", results.size(), schoolId);
 
         return PhotoAnalysisResponse.builder()
-                .analyzedCount(results.size())
-                .results(results)
+                .processedCount(processedCount)
                 .build();
     }
 }

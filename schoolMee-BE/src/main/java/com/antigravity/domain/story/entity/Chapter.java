@@ -3,8 +3,8 @@ package com.antigravity.domain.story.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 챕터 엔티티.
@@ -38,5 +38,6 @@ public class Chapter {
     @org.hibernate.annotations.BatchSize(size = 50)
     @Builder.Default
     @OneToMany(mappedBy = "chapter", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ChapterPhoto> chapterPhotos = new ArrayList<>();
+    @OrderBy("id ASC")
+    private Set<ChapterPhoto> chapterPhotos = new HashSet<>();
 }

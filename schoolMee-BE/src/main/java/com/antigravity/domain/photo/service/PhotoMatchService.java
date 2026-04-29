@@ -13,9 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 사진-학생 매칭 서비스.
@@ -39,79 +38,60 @@ public class PhotoMatchService {
     private final StudentRepository studentRepository;
 
     @Transactional
-    public PhotoMatchResponse matchStudents(Long schoolId) {
-        final List<Photo> analyzedPhotos =
-                photoRepository.findBySchoolIdAndAnalysisStatus(schoolId, AnalysisStatus.ANALYZED);
-        final List<Student> students = studentRepository.findAllBySchoolIdWithSchool(schoolId);
+    public PhotoMatchResponse matchStudents(List<Long> photoIds) {
+        final List<Photo> groupPhotos = photoRepository.findAllById(photoIds)
+                .stream()
+                .filter(p -> p.getAnalysisStatus() == AnalysisStatus.ANALYZED && p.getType() == com.antigravity.domain.photo.entity.PhotoType.GROUP)
+                .collect(Collectors.toList());
 
+        if (groupPhotos.isEmpty()) {
+            return PhotoMatchResponse.builder().processedPhotoCount(0).matchedStudentCount(0).build();
+        }
+
+        Long schoolId = groupPhotos.get(0).getSchool().getId();
+        final List<Student> students = studentRepository.findAllBySchoolIdWithSchool(schoolId);
         if (students.isEmpty()) {
             throw new IllegalStateException("매칭할 학생이 없습니다. schoolId=" + schoolId);
         }
 
-        if (analyzedPhotos.isEmpty()) {
-            log.warn("ANALYZED 상태 사진 없음 — 먼저 /photos/analyze 를 호출하세요. schoolId={}", schoolId);
-            return PhotoMatchResponse.builder()
-                    .matchedCount(0)
-                    .matches(List.of())
-                    .build();
-        }
+        int totalMatchedStudents = 0;
+        final java.util.Random RANDOM = new java.util.Random();
 
-        final List<PhotoMatchResponse.PhotoMatchItem> matchItems = new ArrayList<>();
-
-        for (Photo photo : analyzedPhotos) {
-            // 이 사진에서 감지된 얼굴 수만큼 학생 선택 (최대 전체 학생 수까지)
-            final int faceCount  = photo.getDetectedFacesCount() != null ? photo.getDetectedFacesCount() : 1;
-            final int selectCount = Math.min(faceCount, students.size());
-
-            // 학생 리스트를 섞어 랜덤으로 selectCount명 선택
-            final List<Student> shuffled = new ArrayList<>(students);
-            Collections.shuffle(shuffled);
-            final List<Student> selected = shuffled.subList(0, selectCount);
-
-            for (Student student : selected) {
-                // 복합 UK 확인 — 중복 매칭 방지
-                if (photoStudentRepository.existsByPhotoIdAndStudentId(photo.getId(), student.getId())) {
-                    log.debug("중복 매칭 스킵: photoId={}, studentId={}", photo.getId(), student.getId());
-                    continue;
+        for (Photo photo : groupPhotos) {
+            for (Student student : students) {
+                // 70% 확률로 매칭 수행
+                if (RANDOM.nextDouble() <= 0.7) {
+                    if (!photoStudentRepository.existsByPhotoIdAndStudentId(photo.getId(), student.getId())) {
+                        double matchScore = computeMatchScore(photo);
+                        photoStudentRepository.save(PhotoStudent.builder()
+                                .photo(photo)
+                                .student(student)
+                                .matchScore(matchScore)
+                                .build());
+                        totalMatchedStudents++;
+                    }
                 }
-
-                final double matchScore = computeMatchScore(photo);
-
-                photoStudentRepository.save(PhotoStudent.builder()
-                        .photo(photo)
-                        .student(student)
-                        .matchScore(matchScore)
-                        .build());
-
-                matchItems.add(PhotoMatchResponse.PhotoMatchItem.builder()
-                        .photoId(photo.getId())
-                        .studentId(student.getId())
-                        .studentName(student.getName())
-                        .matchScore(matchScore)
-                        .build());
-
-                log.info("매칭 완료: photoId={}, student={}({}), score={}",
-                        photo.getId(), student.getName(), student.getId(), matchScore);
             }
         }
 
-        log.info("총 {}건 매칭 완료 (schoolId={})", matchItems.size(), schoolId);
+        // 온보딩 단계 업데이트
+        com.antigravity.domain.school.entity.School school = groupPhotos.get(0).getSchool();
+        if (school.getOnboardingStep() == com.antigravity.domain.school.entity.OnboardingStep.PHOTO_UPLOADED) {
+            school.updateOnboardingStep(com.antigravity.domain.school.entity.OnboardingStep.MATCHING_COMPLETED);
+            log.info("학교 온보딩 단계 업데이트: {} -> {}", 
+                com.antigravity.domain.school.entity.OnboardingStep.PHOTO_UPLOADED, 
+                com.antigravity.domain.school.entity.OnboardingStep.MATCHING_COMPLETED);
+        }
 
         return PhotoMatchResponse.builder()
-                .matchedCount(matchItems.size())
-                .matches(matchItems)
+                .processedPhotoCount(groupPhotos.size())
+                .matchedStudentCount(totalMatchedStudents)
                 .build();
     }
 
-    /**
-     * 매칭 신뢰도 점수 계산.
-     * matchScore = (smileScore × 0.6 + activityScore × 0.4) / 100.0
-     * null-safe 처리: null인 경우 50 기본값 사용
-     */
     private double computeMatchScore(Photo photo) {
         final int smile    = photo.getSmileScore()    != null ? photo.getSmileScore()    : 50;
         final int activity = photo.getActivityScore() != null ? photo.getActivityScore() : 50;
-        // 소수점 2자리 반올림
-        return Math.round((smile * 0.6 + activity * 0.4)) / 100.0;
+        return (smile * 0.6 + activity * 0.4) / 100.0;
     }
 }

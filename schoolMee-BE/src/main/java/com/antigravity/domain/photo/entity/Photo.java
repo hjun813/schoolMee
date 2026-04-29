@@ -35,6 +35,11 @@ public class Photo {
     @Column(nullable = false, length = 1000)
     private String url;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private PhotoType type = PhotoType.GROUP;
+
     // AI 분석 결과: 미소 점수 (0 ~ 100). 분석 전 null.
     @Column(name = "smile_score")
     private Integer smileScore;

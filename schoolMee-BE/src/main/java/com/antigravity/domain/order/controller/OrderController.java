@@ -19,8 +19,14 @@ public class OrderController {
     @Operation(summary = "앨범 주문 생성",
                description = "검수 완료된 스토리를 기반으로 앨범 제작 주문을 생성합니다. 하나의 스토리로 하나의 주문만 가능합니다.")
     @PostMapping("/api/v1/admin/orders")
-    public ResponseEntity<OrderResponse> createOrder(@RequestBody CreateOrderRequest request) {
-        return ResponseEntity.ok(orderService.createOrder(request));
+    public ResponseEntity<?> createOrder(@RequestBody CreateOrderRequest request) {
+        try {
+            OrderResponse response = orderService.createOrder(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            // 500 에러를 명확한 에러 메시지를 담은 400으로 전환하여 반환
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
     }
 
     @Operation(summary = "학교 전체 주문 목록 조회",

@@ -1,6 +1,15 @@
+export type OnboardingStep = 
+  | 'SCHOOL_CREATED' 
+  | 'CLASS_CREATED' 
+  | 'STUDENT_UPLOADED' 
+  | 'PHOTO_UPLOADED' 
+  | 'MATCHING_COMPLETED' 
+  | 'STORY_GENERATED';
+
 export interface SchoolDashboardResponse {
   schoolId: number;
   name: string;
+  onboardingStatus: OnboardingStep;
   totalStudents: number;
   storiesGenerated: number;
   ordersCreated: number;
@@ -98,4 +107,28 @@ export interface PhotoAnalysisResponse {
 export interface PhotoMatchResponse {
   processedPhotoCount: number;
   matchedStudentCount: number;
+}
+
+export type PipelineJobStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
+
+export interface PipelineStatusResponse {
+  jobId: number;
+  schoolId: number;
+  status: PipelineJobStatus;
+  processedPhotos: number;
+  storiesGenerated: number;
+  startTime: string;
+  endTime: string;
+  errorMessage: string;
+}
+
+export interface StudentProfileDto {
+  studentId: number;
+  name: string;
+  faceKey: string;
+}
+
+export interface StudentBulkUploadResponse {
+  totalUploaded: number;
+  createdStudents: StudentProfileDto[];
 }

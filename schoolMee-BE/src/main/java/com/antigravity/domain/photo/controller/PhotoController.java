@@ -14,6 +14,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import com.antigravity.domain.photo.entity.Photo;
+import com.antigravity.domain.photo.repository.PhotoRepository;
 
 /**
  * 사진 처리 API (단계별 개별 호출).
@@ -28,13 +36,41 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/photos")
+@RequestMapping("/api/v1/admin/photos")
 @Tag(name = "03. Photo Pipeline", description = "사진 업로드 / AI 분석 / 학생 매칭 (단계별)")
 public class PhotoController {
 
     private final PhotoUploadService photoUploadService;
     private final PhotoAnalysisService photoAnalysisService;
     private final PhotoMatchService photoMatchService;
+    private final PhotoRepository photoRepository;
+
+    @Operation(summary = "사진 원본 이미지 조회", description = "photoId에 해당하는 이미지 파일을 서빙합니다.")
+    @GetMapping("/{photoId}")
+    public ResponseEntity<Resource> getPhoto(@PathVariable Long photoId) {
+        try {
+            Photo photo = photoRepository.findById(photoId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 사진이 없습니다. id=" + photoId));
+            
+            Path filePath = Paths.get(photo.getUrl()).toAbsolutePath().normalize();
+            Resource resource = new UrlResource(filePath.toUri());
+
+            if (!resource.exists() || !resource.isReadable()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String contentType = Files.probeContentType(filePath);
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 
     @Operation(
             summary = "① 사진 업로드",
@@ -44,9 +80,10 @@ public class PhotoController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PhotoUploadResponse> upload(
             @Parameter(description = "학교 ID") @RequestParam Long schoolId,
+            @Parameter(description = "사진 타입 (PROFILE / GROUP)") @RequestParam com.antigravity.domain.photo.entity.PhotoType type,
             @Parameter(description = "업로드할 사진 파일 (복수 가능)")
             @RequestPart("files") MultipartFile[] files) {
-        return ResponseEntity.ok(photoUploadService.uploadPhotos(schoolId, files));
+        return ResponseEntity.ok(photoUploadService.uploadPhotos(schoolId, type, files));
     }
 
     @Operation(
@@ -57,8 +94,8 @@ public class PhotoController {
     )
     @PostMapping("/analyze")
     public ResponseEntity<PhotoAnalysisResponse> analyze(
-            @Parameter(description = "학교 ID") @RequestParam Long schoolId) {
-        return ResponseEntity.ok(photoAnalysisService.analyzeAllPending(schoolId));
+            @RequestBody List<Long> photoIds) {
+        return ResponseEntity.ok(photoAnalysisService.analyzePhotos(photoIds));
     }
 
     @Operation(
@@ -69,7 +106,7 @@ public class PhotoController {
     )
     @PostMapping("/match")
     public ResponseEntity<PhotoMatchResponse> match(
-            @Parameter(description = "학교 ID") @RequestParam Long schoolId) {
-        return ResponseEntity.ok(photoMatchService.matchStudents(schoolId));
+            @RequestBody List<Long> photoIds) {
+        return ResponseEntity.ok(photoMatchService.matchStudents(photoIds));
     }
 }

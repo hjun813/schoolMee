@@ -1,21 +1,27 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { exportSchoolData } from '../api/endpoints';
+import { useSchool } from '../context/SchoolContext';
 import { Download, FileJson } from 'lucide-react';
 
 const ExportPage = () => {
   const [exporting, setExporting] = useState(false);
-  const SCHOOL_ID = 1;
+  const { currentSchoolId: schoolId } = useSchool();
+
+  useEffect(() => {
+    // Context 기반이므로 로컬 fetch 불필요
+  }, []);
 
   const handleExport = async () => {
+    if (!schoolId) return alert('학교 정보를 찾을 수 없습니다.');
     setExporting(true);
     try {
-      const res = await exportSchoolData(SCHOOL_ID);
+      const res = await exportSchoolData(schoolId);
       
       // JSON 다운로드 로직
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 2));
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", `schoolmee_export_school_${SCHOOL_ID}_${new Date().getTime()}.json`);
+      downloadAnchorNode.setAttribute("download", `schoolmee_export_school_${schoolId}_${new Date().getTime()}.json`);
       document.body.appendChild(downloadAnchorNode);
       downloadAnchorNode.click();
       downloadAnchorNode.remove();

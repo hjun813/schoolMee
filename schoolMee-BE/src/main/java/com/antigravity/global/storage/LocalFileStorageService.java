@@ -40,8 +40,11 @@ public class LocalFileStorageService implements FileStorageService {
             final Path targetPath = targetDir.resolve(savedFilename);
             Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            log.info("파일 저장 완료: {}", targetPath);
-            return targetPath.toString();
+            String relativePathStr = Paths.get(uploadDir, directory, savedFilename).toString();
+            relativePathStr = relativePathStr.replace("\\", "/");
+
+            log.info("파일 저장 완료 (절대 경로: {}, 상대 경로: {})", targetPath, relativePathStr);
+            return relativePathStr;
 
         } catch (IOException e) {
             throw new RuntimeException("파일 저장 실패: " + file.getOriginalFilename(), e);

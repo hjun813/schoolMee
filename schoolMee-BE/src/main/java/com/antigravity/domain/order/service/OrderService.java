@@ -9,12 +9,14 @@ import com.antigravity.domain.school.repository.SchoolRepository;
 import com.antigravity.domain.story.entity.Story;
 import com.antigravity.domain.story.repository.StoryRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -29,20 +31,46 @@ public class OrderService {
      */
     @Transactional
     public OrderResponse createOrder(final CreateOrderRequest request) {
+        log.info("=== 주문 생성 요청 ===");
+        log.info("storyId: {}", request.getStoryId());
+
         if (albumOrderRepository.existsByStoryId(request.getStoryId())) {
-            throw new IllegalStateException("이미 해당 스토리로 생성된 주문이 있습니다. storyId=" + request.getStoryId());
+            throw new IllegalArgumentException("이미 해당 스토리로 생성된 주문이 있습니다. storyId=" + request.getStoryId());
         }
 
         final Story story = storyRepository.findByIdWithDetails(request.getStoryId())
-                .orElseThrow(() -> new IllegalArgumentException("스토리를 찾을 수 없습니다. storyId=" + request.getStoryId()));
+                .orElse(null);
 
-        final AlbumOrder order = AlbumOrder.builder()
-                .student(story.getStudent())
-                .story(story)
-                .status(OrderStatus.PENDING)
-                .build();
+        if (story == null) {
+            log.error("매칭 실패: Story not found (ID: {})", request.getStoryId());
+            throw new RuntimeException("스토리를 찾을 수 없습니다. (storyId: " + request.getStoryId() + ")");
+        }
+        if (story.getStudent() == null) {
+            log.error("데이터 누락 오류: Student is null (storyId: {})", story.getId());
+            throw new RuntimeException("Student 정보가 누락되었습니다.");
+        }
+        if (story.getStudent().getSchool() == null) {
+            log.error("데이터 누락 오류: School is null (studentId: {})", story.getStudent().getId());
+            throw new RuntimeException("School 정보가 누락되었습니다.");
+        }
 
-        return OrderResponse.from(albumOrderRepository.save(order));
+        log.info("student: {}", story.getStudent().getName());
+        log.info("chapters size: {}", story.getChapters() != null ? story.getChapters().size() : 0);
+
+        try {
+            final AlbumOrder order = AlbumOrder.builder()
+                    .student(story.getStudent())
+                    .story(story)
+                    .status(OrderStatus.PENDING)
+                    .build();
+
+            AlbumOrder savedOrder = albumOrderRepository.save(order);
+            log.info("주문 생성 성공: orderId={}", savedOrder.getId());
+            return OrderResponse.from(savedOrder);
+        } catch (Exception e) {
+            log.error("Order 엔티티 저장 중 DB (직렬화 등) 오류 발생: {}", e.getMessage(), e);
+            throw new RuntimeException("주문 저장에 실패했습니다: " + e.getMessage());
+        }
     }
 
     /**

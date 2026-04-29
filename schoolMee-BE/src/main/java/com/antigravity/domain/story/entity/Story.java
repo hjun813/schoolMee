@@ -1,12 +1,13 @@
 package com.antigravity.domain.story.entity;
 
-import com.antigravity.domain.student.entity.Student;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 스토리 엔티티. 핵심 콘텐츠 단위.
@@ -27,16 +28,25 @@ public class Story {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
-    private Student student;
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private com.antigravity.domain.student.entity.Student student;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "theme_id")
+    private Theme theme;
 
     @Column(nullable = false)
     private String title;
+
+    @Column(name = "cover_image_url")
+    private String coverImageUrl;
 
     // Story -> Chapter: 양방향 관계. Chapter 생명주기는 Story에 종속.
     @org.hibernate.annotations.BatchSize(size = 20)
     @Builder.Default
     @OneToMany(mappedBy = "story", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Chapter> chapters = new ArrayList<>();
+    @OrderBy("sequence ASC")
+    private Set<Chapter> chapters = new HashSet<>();
 
     // AI 회고 텍스트 (평균 점수 기반)
     @Column(name = "summary", length = 500)
@@ -47,6 +57,9 @@ public class Story {
 
     @PrePersist
     protected void onCreate() {
+        if (this.student == null) {
+            throw new IllegalArgumentException("Story 생성 실패: 연관된 Student가 누락되었습니다.");
+        }
         this.createdAt = LocalDateTime.now();
     }
 }

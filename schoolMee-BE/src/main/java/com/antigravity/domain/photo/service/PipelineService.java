@@ -2,65 +2,96 @@ package com.antigravity.domain.photo.service;
 
 import com.antigravity.domain.photo.dto.PhotoAnalysisResponse;
 import com.antigravity.domain.photo.dto.PhotoMatchResponse;
-import com.antigravity.domain.photo.dto.PhotoUploadResponse;
-import com.antigravity.domain.photo.dto.PipelineResponse;
+import com.antigravity.domain.photo.dto.PipelineStatusResponse;
+import com.antigravity.domain.photo.entity.PipelineJob;
+import com.antigravity.domain.photo.entity.PipelineJobStatus;
+import com.antigravity.domain.photo.repository.PipelineJobRepository;
+import com.antigravity.domain.story.dto.StoryGenerateResponse;
+import com.antigravity.domain.story.service.StoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
- * 사진 처리 통합 파이프라인 (Facade 패턴).
- *
- * [파이프라인 단계]
- * 1. uploadPhotos()     — 파일 저장 + Photo(PENDING) 엔티티 저장
- * 2. analyzeAllPending() — AI 시뮬레이션으로 ANALYZED 상태로 전환
- * 3. matchStudents()    — ANALYZED 사진과 학생 매칭 (PhotoStudent 저장)
- *
- * Story 생성은 POST /api/v1/admin/stories/generate?schoolId={schoolId} 를 별도 호출.
- * (기존 StoryService.generateStoriesForSchool() 재사용)
+ * 사진 처리 통합 파이프라인 (비동기 대응).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PipelineService {
 
-    private final PhotoUploadService photoUploadService;
     private final PhotoAnalysisService photoAnalysisService;
     private final PhotoMatchService photoMatchService;
+    private final StoryService storyService;
+    private final PipelineJobRepository pipelineJobRepository;
 
-    public PipelineResponse processPipeline(Long schoolId, MultipartFile[] files) {
-        log.info("=== 파이프라인 시작: schoolId={}, 파일 수={} ===", schoolId, files.length);
-
-        // 1단계: 업로드
-        final PhotoUploadResponse uploadResult =
-                photoUploadService.uploadPhotos(schoolId, files);
-        log.info("[1/3] 업로드 완료: {}장", uploadResult.getUploadedCount());
-
-        // 2단계: AI 분석 시뮬레이션
-        final PhotoAnalysisResponse analysisResult =
-                photoAnalysisService.analyzeAllPending(schoolId);
-        log.info("[2/3] 분석 완료: {}장", analysisResult.getAnalyzedCount());
-
-        // 3단계: 학생 매칭
-        final PhotoMatchResponse matchResult =
-                photoMatchService.matchStudents(schoolId);
-        log.info("[3/3] 매칭 완료: {}건", matchResult.getMatchedCount());
-
-        log.info("=== 파이프라인 완료 ===");
-
-        return PipelineResponse.builder()
+    /**
+     * 비동기 파이프라인 시작. 즉시 jobId를 반환한다.
+     */
+    @Transactional
+    public PipelineStatusResponse startPipeline(List<Long> photoIds, Long schoolId) {
+        log.info("▶ 비동기 파이프라인 요청 접수: 학교 {}", schoolId);
+        
+        PipelineJob job = PipelineJob.builder()
                 .schoolId(schoolId)
-                .uploadedCount(uploadResult.getUploadedCount())
-                .analyzedCount(analysisResult.getAnalyzedCount())
-                .matchedCount(matchResult.getMatchedCount())
-                .message(String.format(
-                        "파이프라인 완료: %d장 업로드 → %d장 분석 → %d건 매칭 완료. " +
-                        "다음 단계: POST /api/v1/admin/stories/generate?schoolId=%d",
-                        uploadResult.getUploadedCount(),
-                        analysisResult.getAnalyzedCount(),
-                        matchResult.getMatchedCount(),
-                        schoolId))
+                .status(PipelineJobStatus.PENDING)
+                .totalCount(photoIds != null ? photoIds.size() : 0)
                 .build();
+        
+        PipelineJob savedJob = pipelineJobRepository.save(job);
+        
+        // 실제 연산은 백그라운드 스레드에서 실행
+        runAsyncPipeline(savedJob.getId(), photoIds, schoolId);
+        
+        return PipelineStatusResponse.from(savedJob);
+    }
+
+    /**
+     * 실제 연산 수행 로직 (@Async)
+     */
+    @Async
+    @Transactional
+    public void runAsyncPipeline(Long jobId, List<Long> photoIds, Long schoolId) {
+        PipelineJob job = pipelineJobRepository.findById(jobId).orElse(null);
+        if (job == null) return;
+
+        try {
+            job.updateStatus(PipelineJobStatus.PROCESSING);
+            pipelineJobRepository.saveAndFlush(job);
+            
+            log.info("▶ [Job {}] 파이프라인 비동기 실행 시작", jobId);
+
+            // 1. 분석 (Analyzed)
+            final PhotoAnalysisResponse analysisResult = photoAnalysisService.analyzePhotos(photoIds);
+            log.info("[Job {}] 1/3 분석 완료: {}장", jobId, analysisResult.getProcessedCount());
+
+            // 2. 매칭 (PhotoStudent)
+            final PhotoMatchResponse matchResult = photoMatchService.matchStudents(photoIds);
+            log.info("[Job {}] 2/3 매칭 완료: {}명 매칭", jobId, matchResult.getMatchedStudentCount());
+
+            // 3. 스토리 일괄 생성
+            final StoryGenerateResponse storyResult = storyService.generateStoriesForSchool(schoolId);
+            log.info("[Job {}] 3/3 스토리 생성 완료: {}건 생성", jobId, storyResult.getGenerated());
+
+            job.complete(analysisResult.getProcessedCount(), storyResult.getGenerated());
+            pipelineJobRepository.save(job);
+            log.info("=== [Job {}] 파이프라인 비동기 완료 ===", jobId);
+
+        } catch (Exception e) {
+            log.error("=== [Job {}] 파이프라인 비동기 실행 중 오류 발생 ===", jobId, e);
+            job.fail(e.getMessage());
+            pipelineJobRepository.save(job);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public PipelineStatusResponse getJobStatus(Long jobId) {
+        PipelineJob job = pipelineJobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("작업 정보를 찾을 수 없습니다. jobId=" + jobId));
+        return PipelineStatusResponse.from(job);
     }
 }

@@ -8,16 +8,47 @@ import type {
   SchoolExportResponse,
   PhotoUploadResponse,
   PhotoAnalysisResponse,
-  PhotoMatchResponse
+  PhotoMatchResponse,
+  PipelineStatusResponse,
+  StudentBulkUploadResponse
 } from '../types';
 
 // School
+export const getSchools = () => 
+  api.get<SchoolDashboardResponse[]>('/api/v1/admin/schools');
+
+export const registerSchool = (name: string) =>
+  api.post<number>('/api/v1/admin/schools', { name });
+
 export const getDashboard = (schoolId: number) => 
   api.get<SchoolDashboardResponse>(`/api/v1/admin/schools/${schoolId}`);
+
+export const createClassRoom = (schoolId: number, data: { grade: number; classNum: number }) =>
+  api.post<number>(`/api/v1/admin/schools/${schoolId}/classes`, data);
 
 // Student
 export const getStudents = (schoolId: number) => 
   api.get<StudentListResponse>(`/api/v1/admin/schools/${schoolId}/students`);
+
+// Profile Photo Upload (Anchor)
+export const uploadProfilePhoto = (studentId: number, file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post(`/api/v1/admin/students/${studentId}/profile-photo`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+};
+
+export const bulkUploadProfilesAndCreateStudents = (schoolId: number, files: File[]) => {
+  const formData = new FormData();
+  formData.append('schoolId', schoolId.toString());
+  files.forEach(f => formData.append('files', f));
+  return api.post<StudentBulkUploadResponse>('/api/v1/admin/students/profile-bulk-upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
 
 // Story
 export const generateStories = (schoolId: number) => 
@@ -41,9 +72,10 @@ export const exportSchoolData = (schoolId: number) =>
   api.get<SchoolExportResponse>(`/api/v1/admin/schools/${schoolId}/export`);
 
 // Photos Pipeline
-export const uploadPhotos = (schoolId: number, files: File[]) => {
+export const uploadPhotos = (schoolId: number, type: 'PROFILE' | 'GROUP', files: File[]) => {
   const formData = new FormData();
   formData.append('schoolId', schoolId.toString());
+  formData.append('type', type);
   files.forEach(file => {
     formData.append('files', file);
   });
@@ -52,6 +84,14 @@ export const uploadPhotos = (schoolId: number, files: File[]) => {
       'Content-Type': 'multipart/form-data'
     }
   });
+};
+
+export const runPipeline = (photoIds: number[], schoolId: number) => {
+  return api.post<PipelineStatusResponse>('/api/v1/admin/pipeline/process', { photoIds, schoolId });
+};
+
+export const getPipelineStatus = (jobId: number) => {
+  return api.get<PipelineStatusResponse>(`/api/v1/admin/pipeline/status/${jobId}`);
 };
 
 export const analyzePhotos = (photoIds: number[]) => {

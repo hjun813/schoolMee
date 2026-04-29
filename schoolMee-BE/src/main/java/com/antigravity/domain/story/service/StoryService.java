@@ -12,12 +12,14 @@ import com.antigravity.domain.story.entity.Story;
 import com.antigravity.domain.story.repository.StoryRepository;
 import com.antigravity.domain.student.entity.Student;
 import com.antigravity.domain.student.repository.StudentRepository;
+import com.antigravity.domain.school.repository.SchoolRepository;
+import com.antigravity.domain.school.entity.OnboardingStep;
+import com.antigravity.domain.school.entity.School;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,154 +31,151 @@ public class StoryService {
     private final StoryRepository storyRepository;
     private final StudentRepository studentRepository;
     private final PhotoStudentRepository photoStudentRepository;
+    private final SchoolRepository schoolRepository;
+    private final com.antigravity.domain.story.repository.ThemeRepository themeRepository;
 
-    private static final int MAX_PHOTOS_PER_STORY = 20;
-    private static final int MIN_PHOTOS_PER_STORY = 3;
+    private static final int MAX_PHOTOS_PER_STORY = 24;
+    private static final int MIN_PHOTOS_PER_STORY = 3; // 사용자 요청에 따라 3장으로 조정
     private static final double MATCH_SCORE_THRESHOLD = 0.5;
-    private static final double FALLBACK_MATCH_SCORE_THRESHOLD = 0.3;
 
-    /**
-     * 학교 학생들에 대해 PhotoStudent 매칭 데이터를 기반으로 맞춤형 스토리를 생성한다.
-     * 이미 스토리가 있는 학생은 건너뜀 (멱등성 보장).
-     */
     @Transactional
     public StoryGenerateResponse generateStoriesForSchool(final Long schoolId) {
+        // 1. 학교 전체 학생 조회
         final List<Student> students = studentRepository.findAllBySchoolIdWithSchool(schoolId);
+        final com.antigravity.domain.story.entity.Theme theme = themeRepository.findByCode("MINIMAL")
+                .orElseGet(() -> themeRepository.findAll().get(0));
 
         int generated = 0;
         int skipped = 0;
 
+        // 2. 학생 기준으로 루프 (사진 루프가 아님)
         for (final Student student : students) {
-            if (storyRepository.existsByStudentId(student.getId())) {
+            // 중복 생성 방지: 이미 스토리가 있는 학생은 즉시 스킵
+            if (student == null || storyRepository.existsByStudentId(student.getId())) {
                 skipped++;
                 continue;
             }
 
-            // 1. 학생별 매칭 사진 조회 (점수 높은 순)
-            final List<PhotoStudent> allMatchedPhotos = 
-                    photoStudentRepository.findByStudentIdOrderByMatchScoreDesc(student.getId());
+            // 3. 해당 학생의 모든 매칭 데이터 조회 및 임계값(0.5) 필터링
+            final List<PhotoStudent> eligiblePhotos = 
+                    photoStudentRepository.findByStudentIdOrderByMatchScoreDesc(student.getId())
+                    .stream()
+                    .filter(ps -> ps.getMatchScore() >= MATCH_SCORE_THRESHOLD)
+                    .collect(Collectors.toList());
 
-            // 2. 임계값 적용 및 필터링 (최대 20장)
-            List<PhotoStudent> selectedPhotos = filterTopPhotos(allMatchedPhotos, MATCH_SCORE_THRESHOLD);
-
-            // 3. Fallback 로직: 3장 미만일 경우 임계값을 낮춰서 재시도
-            if (selectedPhotos.size() < MIN_PHOTOS_PER_STORY) {
-                selectedPhotos = filterTopPhotos(allMatchedPhotos, FALLBACK_MATCH_SCORE_THRESHOLD);
-            }
-
-            // 4. 그래도 3장 미만이면 스킵 (데이터 부족)
-            if (selectedPhotos.size() < MIN_PHOTOS_PER_STORY) {
-                log.warn("학생 ID {} 스킵: 매칭된 사진이 부족합니다 ({}장).", student.getId(), selectedPhotos.size());
+            // 4. 최소 사진 수(3장) 검증
+            if (eligiblePhotos.size() < MIN_PHOTOS_PER_STORY) {
+                log.info("학생 ID {} 스토리 생성 스킵: 유효 사진 부족 ({}장).", student.getId(), eligiblePhotos.size());
                 skipped++;
                 continue;
             }
 
-            // 5. 평균 점수 계산 및 회고(Summary) 텍스트 생성
-            final double avgSmile = selectedPhotos.stream()
-                    .mapToInt(ps -> ps.getPhoto().getSmileScore() != null ? ps.getPhoto().getSmileScore() : 50)
-                    .average().orElse(50.0);
-            final double avgActivity = selectedPhotos.stream()
-                    .mapToInt(ps -> ps.getPhoto().getActivityScore() != null ? ps.getPhoto().getActivityScore() : 50)
-                    .average().orElse(50.0);
-            
-            final String summary = generateSummaryText(avgSmile, avgActivity);
+            // 최대 사진 수 제한
+            final List<PhotoStudent> selectedPhotos = eligiblePhotos.stream()
+                    .limit(MAX_PHOTOS_PER_STORY)
+                    .collect(Collectors.toList());
 
-            // 6. Story 생성
+            // 5. 스토리 구성 요소 산출 (커버, 서머리 등)
+            final String coverUrl = selectBestCover(selectedPhotos);
+            final String summary = generateEnhancedSummary(selectedPhotos);
+
             final Story story = Story.builder()
                     .student(student)
-                    .title(student.getName() + "의 빛나는 이야기")
+                    .theme(theme)
+                    .title(student.getName() + "의 빛나는 앨범")
                     .summary(summary)
+                    .coverImageUrl(coverUrl)
                     .build();
 
-            // 7. Chapter 생성 및 사진 분배 ("추억", "친구", "일상")
-            assignPhotosToChapters(story, selectedPhotos);
+            // 6. 챕터 전략 배분 및 저장
+            assignPhotosToStrategicChapters(story, selectedPhotos);
 
             storyRepository.save(story);
             generated++;
-            log.info("학생 ID {} 스토리 생성 완료 (사진 {}장)", student.getId(), selectedPhotos.size());
+            log.info("학생 ID {} 스토리 일괄 생성 완료 (사진 {}장)", student.getId(), selectedPhotos.size());
         }
+
+        completeOnboarding(schoolId);
 
         return StoryGenerateResponse.builder()
                 .schoolId(schoolId)
                 .generated(generated)
                 .skipped(skipped)
-                .message(generated + "명 맞춤형 스토리 생성 완료, " + skipped + "명 스킵 (이미 존재 또는 사진 부족)")
+                .message(String.format("%d명 스토리 일괄 생성 완료 (기존/누락 %d명 제외)", generated, skipped))
                 .build();
     }
 
-    /**
-     * 임계값 이상인 사진을 최대 MAX_PHOTOS_PER_STORY 장까지 필터링한다.
-     */
-    private List<PhotoStudent> filterTopPhotos(List<PhotoStudent> photos, double threshold) {
+    private String selectBestCover(List<PhotoStudent> photos) {
         return photos.stream()
-                .filter(ps -> ps.getMatchScore() >= threshold)
-                .limit(MAX_PHOTOS_PER_STORY)
-                .collect(Collectors.toList());
+                .map(PhotoStudent::getPhoto)
+                .max((p1, p2) -> Integer.compare(
+                    p1.getSmileScore() != null ? p1.getSmileScore() : 0,
+                    p2.getSmileScore() != null ? p2.getSmileScore() : 0
+                ))
+                .map(Photo::getUrl)
+                .orElse(null);
     }
 
-    /**
-     * 평균 점수를 기반으로 AI 회고 텍스트를 생성한다.
-     */
-    private String generateSummaryText(double avgSmile, double avgActivity) {
-        StringBuilder sb = new StringBuilder();
-        if (avgActivity >= 70) {
-            sb.append("에너지가 넘치고 활동적인 순간이 많았습니다! ");
-        }
-        if (avgSmile >= 70) {
-            sb.append("친구들과 함께한 시간 동안 항상 웃음이 끊이지 않았네요! ");
-        }
+    private String generateEnhancedSummary(List<PhotoStudent> photos) {
+        final double avgSmile = photos.stream()
+                .mapToInt(ps -> ps.getPhoto().getSmileScore() != null ? ps.getPhoto().getSmileScore() : 50)
+                .average().orElse(50.0);
+        final double avgActivity = photos.stream()
+                .mapToInt(ps -> ps.getPhoto().getActivityScore() != null ? ps.getPhoto().getActivityScore() : 50)
+                .average().orElse(50.0);
         
-        if (sb.length() == 0) {
-            sb.append("학교에서의 소중한 일상들이 예쁘게 담겼습니다.");
-        }
-        return sb.toString().trim();
+        return generateSummaryText(avgSmile, avgActivity);
     }
 
-    /**
-     * 사진들을 의미 기반으로 분류하여 챕터를 생성하고 배정한다.
-     * - 추억: activity_score >= 70
-     * - 친구: smile_score >= 70 (추억 제외)
-     * - 일상: 나머지
-     */
-    private void assignPhotosToChapters(Story story, List<PhotoStudent> selectedPhotos) {
-        final Chapter memoryChapter = Chapter.builder().story(story).title("추억").sequence(1).build();
-        final Chapter friendChapter = Chapter.builder().story(story).title("친구").sequence(2).build();
-        final Chapter dailyChapter = Chapter.builder().story(story).title("일상").sequence(3).build();
+    private String generateSummaryText(double avgSmile, double avgActivity) {
+        if (avgSmile >= 80 && avgActivity >= 80) return "열정 가득한 활동량과 끊이지 않는 웃음으로 가득 찬 한 해였습니다. 당신의 밝은 에너지가 주변을 환하게 만들었습니다.";
+        if (avgSmile >= 70) return "다양한 활동 속에서도 친구들과 함께 환하게 웃는 모습이 인상적이었습니다. 소중한 추억들이 앨범에 가득 담겼습니다.";
+        if (avgActivity >= 70) return "누구보다 적극적으로 참여하며 많은 것을 배운 한 해였습니다. 역동적인 순간들이 당신의 성장을 보여줍니다.";
+        return "친구들과 함께한 소중한 기록들이 앨범에 오롯이 담겼습니다. 이 사진들이 훗날 꺼내보는 따뜻한 선물이 되기를 바랍니다.";
+    }
+
+    private void assignPhotosToStrategicChapters(Story story, List<PhotoStudent> selectedPhotos) {
+        final Chapter opening = Chapter.builder().story(story).title("새로운 시작").sequence(1).build();
+        final Chapter daily = Chapter.builder().story(story).title("소중한 일상").sequence(2).build();
+        final Chapter friends = Chapter.builder().story(story).title("우리들의 시간").sequence(3).build();
+        final Chapter event = Chapter.builder().story(story).title("특별한 순간").sequence(4).build();
+        final Chapter closing = Chapter.builder().story(story).title("내일로 안녕").sequence(5).build();
 
         for (PhotoStudent ps : selectedPhotos) {
-            final Photo photo = ps.getPhoto();
-            final int smile = photo.getSmileScore() != null ? photo.getSmileScore() : 50;
-            final int activity = photo.getActivityScore() != null ? photo.getActivityScore() : 50;
-            
-            // totalScore는 JSON 요구사항과 일치하도록 (smile + activity) 로 계산
-            final int totalScore = smile + activity;
-
-            final ChapterPhoto chapterPhoto = ChapterPhoto.builder()
-                    .photo(photo)
-                    .totalScore(totalScore)
+            final Photo p = ps.getPhoto();
+            final ChapterPhoto cp = ChapterPhoto.builder()
+                    .photo(p)
+                    .totalScore((p.getSmileScore() != null ? p.getSmileScore() : 50) + 
+                                (p.getActivityScore() != null ? p.getActivityScore() : 50))
                     .build();
 
-            if (activity >= 70) {
-                chapterPhoto.assignChapter(memoryChapter);
-            } else if (smile >= 70) {
-                chapterPhoto.assignChapter(friendChapter);
+            // 지능적 챕터 분배
+            if (p.getType() == com.antigravity.domain.photo.entity.PhotoType.PROFILE) {
+                cp.assignChapter(opening);
+            } else if (p.getType() == com.antigravity.domain.photo.entity.PhotoType.EVENT) {
+                cp.assignChapter(event);
+            } else if (p.getType() == com.antigravity.domain.photo.entity.PhotoType.DAILY) {
+                cp.assignChapter(daily);
+            } else if (ps.getMatchScore() > 0.8) {
+                cp.assignChapter(friends); // 매칭 점수 높음 -> 친구들과 함께/나 중심 활동
             } else {
-                chapterPhoto.assignChapter(dailyChapter);
+                cp.assignChapter(closing);
             }
         }
 
-        // 사진이 존재하는 챕터만 Story에 추가
-        if (!memoryChapter.getChapterPhotos().isEmpty()) story.getChapters().add(memoryChapter);
-        if (!friendChapter.getChapterPhotos().isEmpty()) story.getChapters().add(friendChapter);
-        if (!dailyChapter.getChapterPhotos().isEmpty()) story.getChapters().add(dailyChapter);
+        // 챕터 추가 (사진이 있는 것만)
+        List.of(opening, daily, friends, event, closing).forEach(ch -> {
+            if (!ch.getChapterPhotos().isEmpty()) story.getChapters().add(ch);
+        });
+    }
+
+    @Transactional
+    public void completeOnboarding(Long schoolId) {
+        School school = schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new IllegalArgumentException("학교를 찾을 수 없습니다. schoolId=" + schoolId));
         
-        // 챕터 순서 재정렬 (빈 챕터가 있을 수 있으므로 sequence 재할당)
-        int seq = 1;
-        for (Chapter chapter : story.getChapters()) {
-            // Chapter 엔티티의 sequence를 업데이트하는 로직이 필요하지만,
-            // 현재 구조에서는 setter가 없으므로 그대로 사용하거나 리플렉션/새 객체 생성 필요.
-            // JPA에서는 어차피 list 순서대로 보여지므로 큰 문제는 안됨.
-        }
+        school.updateOnboardingStep(OnboardingStep.STORY_GENERATED);
+        log.info("학교 온보딩 단계 최종 완료: id={}, name={}, step={}", schoolId, school.getName(), OnboardingStep.STORY_GENERATED);
     }
 
     @Transactional(readOnly = true)

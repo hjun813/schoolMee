@@ -1,19 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getDashboard, generateStories } from '../api/endpoints';
 import type { SchoolDashboardResponse } from '../types';
-import { Users, BookOpen, ShoppingCart, CheckCircle, Wand2 } from 'lucide-react';
+import { useSchool } from '../context/SchoolContext';
+import { Users, BookOpen, ShoppingCart, CheckCircle, Wand2, PackageOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const [data, setData] = useState<SchoolDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const { currentSchoolId } = useSchool();
   const navigate = useNavigate();
-  const SCHOOL_ID = 1; // MVP용 하드코딩
 
-  const fetchData = async () => {
+  const fetchData = async (id: number) => {
     try {
-      const res = await getDashboard(SCHOOL_ID);
+      const res = await getDashboard(id);
       setData(res.data);
     } catch (error) {
       console.error('대시보드 데이터를 불러오는데 실패했습니다.', error);
@@ -23,16 +24,19 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (currentSchoolId) {
+      fetchData(currentSchoolId);
+    }
+  }, [currentSchoolId]);
 
   const handleGenerateStories = async () => {
+    if (!currentSchoolId) return;
     if (!confirm('전체 학생의 AI 스토리를 일괄 생성하시겠습니까? (이미 생성된 학생은 제외됩니다)')) return;
     setGenerating(true);
     try {
-      const res = await generateStories(SCHOOL_ID);
+      const res = await generateStories(currentSchoolId);
       alert(res.data.message);
-      fetchData(); // 상태 갱신
+      fetchData(currentSchoolId); // 상태 갱신
     } catch (error) {
       console.error(error);
       alert('스토리 생성 중 오류가 발생했습니다.');
@@ -41,8 +45,26 @@ const Dashboard = () => {
     }
   };
 
-  if (loading) return <div className="p-8">로딩 중...</div>;
-  if (!data) return <div className="p-8">데이터를 불러오지 못했습니다. 백엔드가 실행 중인지 확인하세요.</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+      <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-gray-500 font-medium">데이터를 불러오는 중...</p>
+    </div>
+  );
+
+  if (!data) return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-2xl border border-dashed border-gray-300 p-12">
+      <PackageOpen size={64} className="text-gray-300 mb-4" />
+      <h3 className="text-xl font-bold text-gray-900">학교 정보를 찾을 수 없습니다</h3>
+      <p className="text-gray-500 mt-2 mb-8 text-center">온보딩을 통해 새로운 학교를 등록하거나<br/>서버 상태를 확인해주세요.</p>
+      <button 
+        onClick={() => navigate('/onboarding')}
+        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
+      >
+        온보딩 시작하기
+      </button>
+    </div>
+  );
 
   const stats = [
     { label: '전체 학생 수', value: data.totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },

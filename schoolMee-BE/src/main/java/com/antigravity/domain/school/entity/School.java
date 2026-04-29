@@ -24,8 +24,17 @@ public class School {
     @Column(nullable = false)
     private String name;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "onboarding_step", nullable = false)
+    @Builder.Default
+    private OnboardingStep onboardingStep = OnboardingStep.SCHOOL_CREATED;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public void updateOnboardingStep(OnboardingStep step) {
+        this.onboardingStep = step;
+    }
 
     @PrePersist
     protected void onCreate() {

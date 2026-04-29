@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class SchoolDashboardResponse {
     private Long schoolId;
     private String name;
+    private com.antigravity.domain.school.entity.OnboardingStep onboardingStatus;
     private long totalStudents;
     private long storiesGenerated;
     private long ordersCreated;

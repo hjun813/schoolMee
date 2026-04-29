@@ -22,7 +22,17 @@ public class StoryResponse {
     private String studentName;
     private LocalDateTime createdAt;
     private String summary;
+    private ThemeDto theme;
+    private String coverImageUrl;
     private List<ChapterDto> chapters;
+
+    @Getter
+    @Builder
+    public static class ThemeDto {
+        private Long themeId;
+        private String name;
+        private String code;
+    }
 
     @Getter
     @Builder
@@ -66,6 +76,12 @@ public class StoryResponse {
                 .studentName(story.getStudent().getName())
                 .createdAt(story.getCreatedAt())
                 .summary(story.getSummary())
+                .coverImageUrl(story.getCoverImageUrl())
+                .theme(story.getTheme() != null ? ThemeDto.builder()
+                        .themeId(story.getTheme().getId())
+                        .name(story.getTheme().getName())
+                        .code(story.getTheme().getCode())
+                        .build() : null)
                 .chapters(chapterDtos)
                 .build();
     }

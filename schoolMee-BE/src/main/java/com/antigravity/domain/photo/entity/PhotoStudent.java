@@ -3,6 +3,8 @@ package com.antigravity.domain.photo.entity;
 import com.antigravity.domain.student.entity.Student;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 /**
  * Photo ↔ Student 중간 매핑 테이블.
@@ -33,10 +35,12 @@ public class PhotoStudent {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "photo_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Photo photo;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Student student;
 
     // 매칭 신뢰도 점수 (0.0 ~ 1.0)

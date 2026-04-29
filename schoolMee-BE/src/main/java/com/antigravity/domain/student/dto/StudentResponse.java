@@ -17,8 +17,8 @@ public class StudentResponse {
         return StudentResponse.builder()
                 .id(student.getId())
                 .name(student.getName())
-                .grade(student.getGrade())
-                .classNum(student.getClassNum())
+                .grade(student.getClassRoom().getGrade())
+                .classNum(student.getClassRoom().getClassNum())
                 .schoolName(student.getSchool().getName())
                 .build();
     }
