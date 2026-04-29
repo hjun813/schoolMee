@@ -5,7 +5,6 @@ spring:
   # DB 설정 (Docker가 없는 환경을 위해 H2 인메모리 DB를 기본으로 사용합니다)
   datasource:
     url: jdbc:h2:mem:schoolmee;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
     username: sa
     password:
     

@@ -7,7 +7,9 @@ import {
   bulkUploadProfilesAndCreateStudents, 
   uploadPhotos, 
   runPipeline,
-  getPipelineStatus
+  getPipelineStatus,
+  setupDemoData,
+  resetDemoData
 } from '../api/endpoints';
 import { 
   School, 
@@ -20,7 +22,9 @@ import {
   ChevronRight,
   Loader2,
   Trash2,
-  Monitor
+  Monitor,
+  Sparkles,
+  RotateCcw
 } from 'lucide-react';
 
 const STEPS = [
@@ -50,6 +54,12 @@ const Onboarding = () => {
   const [pipelineResult, setPipelineResult] = useState<any>(null);
   const [polledJobStatus, setPolledJobStatus] = useState<string>('IDLE');
   const [logs, setLogs] = useState<string[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const addLog = (msg: string) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
 
@@ -149,6 +159,34 @@ const Onboarding = () => {
       setLoading(false);
     }
   };
+  const handleDemoSetup = async () => {
+    if (!confirm('데모 데이터를 생성하시겠습니까? 전체 온보딩 과정이 즉시 완료됩니다.')) return;
+    setLoading(true);
+    try {
+      await setupDemoData();
+      showToast('데모 데이터 생성 완료! 학생 관리 화면으로 이동합니다.');
+      setTimeout(() => navigate('/students'), 1500);
+    } catch (e) {
+      showToast('데모 데이터 생성 실패', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoReset = async () => {
+    if (!confirm('모든 데모 데이터를 초기화하시겠습니까?')) return;
+    setLoading(true);
+    try {
+      await resetDemoData();
+      showToast('데모 데이터 초기화 완료');
+      // 페이지 새로고침 또는 상태 초기화
+      window.location.reload();
+    } catch (e) {
+      showToast('초기화 실패', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto py-12 px-4">
@@ -156,6 +194,35 @@ const Onboarding = () => {
       <div className="text-center mb-12">
         <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">서비스 시작하기</h1>
         <p className="mt-3 text-lg text-gray-500">SchoolMee의 AI 서비스를 위한 간단한 온보딩 절차를 진행합니다.</p>
+        
+        {/* Demo Quick Setup Section */}
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4 bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100">
+          <div className="text-center sm:text-left">
+            <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2 justify-center sm:justify-start">
+              <Sparkles size={16} className="text-indigo-600" />
+              빠른 평가를 위한 데모 모드
+            </h3>
+            <p className="text-xs text-indigo-600 mt-1">한 번의 클릭으로 전체 서비스를 즉시 체험해보세요.</p>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleDemoSetup}
+              disabled={loading}
+              className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 flex items-center gap-2 disabled:opacity-50"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+              데모 데이터 생성
+            </button>
+            <button 
+              onClick={handleDemoReset}
+              disabled={loading}
+              className="px-5 py-2.5 bg-white border border-indigo-200 text-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-50 transition-all flex items-center gap-2 disabled:opacity-50"
+            >
+              <RotateCcw size={16} />
+              초기화
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Stepper */}
@@ -391,6 +458,15 @@ const Onboarding = () => {
           </div>
         </div>
       </div>
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-4 duration-300 flex items-center gap-3 ${
+          toast.type === 'success' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {toast.type === 'success' ? <CheckCircle size={20} className="text-green-400" /> : <Monitor size={20} />}
+          <span className="font-bold">{toast.message}</span>
+        </div>
+      )}
     </div>
   );
 };

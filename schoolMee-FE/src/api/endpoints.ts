@@ -101,3 +101,10 @@ export const analyzePhotos = (photoIds: number[]) => {
 export const matchStudents = (photoIds: number[]) => {
   return api.post<PhotoMatchResponse>('/api/v1/admin/photos/match', photoIds);
 };
+
+// Demo
+export const setupDemoData = () => 
+  api.post<string>('/api/v1/admin/demo/setup');
+
+export const resetDemoData = () =>
+  api.post<string>('/api/v1/admin/demo/reset');
